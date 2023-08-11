@@ -10,7 +10,10 @@ import 'package:scryfall_api/scryfall_api.dart' as scry;
 void main() => runApp(const MtgGoldfisher());
 int deckPtr = 0;
 final apiClient = scry.ScryfallApiClient();
-List<String> deck = ["Hello"];
+List<scry.MtgCard> deck = [];
+Key initialKey = GlobalKey();
+Map keyImage = {initialKey:"index 0"};
+
 
 /// A class for consolidating the definition of menu entries.
 ///
@@ -26,6 +29,8 @@ class MenuEntry {
   final MenuSerializableShortcut? shortcut;
   final VoidCallback? onPressed;
   final List<MenuEntry>? menuChildren;
+
+  
 
   static List<Widget> build(List<MenuEntry> selections) {
     Widget buildSelection(MenuEntry selection) {
@@ -46,50 +51,141 @@ class MenuEntry {
   }
 }
 
-class DynamicWidget extends StatefulWidget {
+//Be able to somehow track each widget and be able to grab the image associated with each
+//We need to be able to save the image associated with each card
+//We need to be able to save a map of each card's key and the image associated with it
+class MtgCard extends StatefulWidget {
   @override
-  State<DynamicWidget> createState() => _DynamicWidgetState();
+  State<MtgCard> createState() => _MtgCardState();
 }
 
-class _DynamicWidgetState extends State<DynamicWidget> {
+class _MtgCardState extends State<MtgCard> {
+  Key objKey = keyImage.keys.toList()[deckPtr];
 
- void addCard(String card){
+  void addCard(scry.MtgCard card, int ptr){
+    //add card to deck
     deck.add(card);
- }
+
+    //add to map
+    final key = GlobalKey();
+    keyImage[key] = "http://cards.scryfall.io${card.imageUris!.large.path}";
+    //print(card.name);
+    print(key);
+  }
+
+  //final uri = "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}";
+  //final uri = "https://cards.scryfall.io/large/front/f/1/f1d9cfce-1507-4cdf-9d58-6ebaf44e72e3.jpg?1562557622";
+
+  
+
+  double elevation = 4.0; 
+  double scale = 1.0;
+  Offset translate = Offset(0,0);
+
+ 
+
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.all(5.0),
-      /*  child:ListBody(
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 30,
-                padding: EdgeInsets.fromLTRB(5, 5, 5, 0),
-                  child: TextFormField(
-                  controller: Name,
-                    decoration: const InputDecoration(
-                        labelText: 'Card Name',
-                        border: OutlineInputBorder()
+      return Container(
+        margin: EdgeInsets.all(25.0),
+  //      key: ValueKey<String>(deck[deckPtr].name),
+        //What you drag
+        child: Draggable(
+          feedback: Container(
+            height: 300,
+            width: 215,
+            decoration: BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage(
+                  keyImage[objKey]
+                  ),
+              fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          //What you see when you're dragging
+          childWhenDragging: Opacity(
+            opacity: 0.5,
+            child: Container(
+              width: 200,
+              height: 275,
+              decoration: BoxDecoration(
+              image: DecorationImage(
+                image: NetworkImage(
+                    keyImage[objKey]
+                    ),
+                fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+         /* child: Container(
+              width: 200,
+              height: 275,
+              decoration: BoxDecoration(
+              image: DecorationImage(
+                image: NetworkImage(
+                    "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}"
+                    ),
+                fit: BoxFit.cover,
+                ),
+              ),
+            ),*/
+            child: InkWell(
+              onTap: (){},
+              onHover: (value){
+                if(value){
+                  print(objKey);
+                  print(keyImage[objKey]);
+                  print(keyImage.keys.toList()[0]);
+               //   print(translate);
+                  setState((){
+                    elevation = 4.0; 
+                    scale = 1.5;
+                    translate = Offset(0,-100);
+                  });
+                }else{
+                //  print("Not hovering :(");
+               //   print(translate);
+                  setState((){
+                    elevation = 4.0; 
+                    scale = 1.0;
+                    translate = Offset(0,0);
+                  });
+                }
+             },
+             child: SizedBox(
+                width: 200,
+                height: 275,
+               /* decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: NetworkImage(
+                        "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}"
+                        ),
+                    fit: BoxFit.cover,
+                    ),
+                ),
+                child: [
+                  
+                ]*/
+                child: Transform.translate(
+                offset: translate,        
+                child: Transform.scale(
+                  scale: scale,
+                  child: Material(        
+                    elevation: elevation,        
+                    child: Image.network(           
+                        keyImage[objKey]
+                    ),
                   ),
                 ),
               ),
-            ],
-          )
-        ],
-      ),*/
-      child: Container(
-        width: 150,
-        color: Colors.red,
-        child: Column(
-          children: [
-            Text(deck[deckPtr]),
-          ],
-        )
-      ),
-    );
+             ),
+           ),
+        ),
+      );
+  
     
   }
 }
@@ -125,7 +221,7 @@ class _MtgAppState extends State<MtgApp> {
   String? _lastSelection;
 
   //used for card drawing
-  List<DynamicWidget> dynamicList = [];
+  List<MtgCard> dynamicList = [];
   List<String> cardName = [];
 
   Color backgroundColor = Color.fromARGB(255, 255, 255, 255);
@@ -181,31 +277,39 @@ class _MtgAppState extends State<MtgApp> {
                   ),
             ),
                   Container(
-                    margin: const EdgeInsets.all(15.0),
-                    height: 250,
-                    padding: const EdgeInsets.all(3.0),
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                    height: 350,
+                    padding: const EdgeInsets.all(5.0),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color.fromARGB(255, 0, 0, 0))
                     ),
                     child: KeyboardWidget(
                           bindings: [
                             KeyAction(LogicalKeyboardKey.keyD, 'Draw a card', () {
-//                    debugPrint('test');
-                              setState(() {
-                                dynamicList.add(DynamicWidget());
+                              if(deck.isNotEmpty){
+                                setState(() {
+                                dynamicList.add(MtgCard());
+                              //  dynamicList.add(DynamicWidget(key: UniqueKey(), ptr: deckPtr));
                                 deckPtr++;
                               });
-//                    debugPrint("Length:" + dynamicList.length.toString());
+                              } else {
+                                print("Please enter decklist");
+                              }
                             })
                           ],
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.fromLTRB(10.0, 0.0, 10.0, 0.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: dynamicList,
-                            )
-                          )
+                     //     child: Scrollbar(
+                      //      thickness: 10, //width of scrollbar
+                      //      radius: Radius.circular(20), //corner radius of scrollbar
+                         //   scrollbarOrientation: ScrollbarOrientation.left, 
+                            child: SingleChildScrollView(
+                          //    scrollDirection: Axis.horizontal,
+                             // padding: EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 0.0),
+                              child: Row(
+                               // mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: dynamicList,
+                              )
+                            ),
+                        //  )
                       ),
                   ),
           ],
@@ -289,7 +393,7 @@ class _MtgAppState extends State<MtgApp> {
     String cardName = "";
 
 
-      _DynamicWidgetState deckBox = _DynamicWidgetState();
+      _MtgCardState deckBox = _MtgCardState();
     LineSplitter.split(deckList).forEach((line) => 
     cardList.add(line));
 
@@ -302,19 +406,15 @@ class _MtgAppState extends State<MtgApp> {
       if(int.tryParse(cardParameters[0]) != null){
         for(var count = 0; count < int.parse(cardParameters[0]); count++){
           for(var count2 = 1; count2 < cardParameters.length; count2++){
-            cardName = cardName + cardParameters[count2] + " ";
+            cardName = "$cardName${cardParameters[count2]} ";
           }
           
           if(cardName != ""){
-            print(cardName);
-            //print(cardName.length);
             final mtgCard = await apiClient.getCardByName(cardName);
-            print("Mana Cost of card: ${mtgCard.manaCost}");
-            print("Image?: ${mtgCard.imageUris}");
 
             setState(() {
-              deckBox.addCard(cardName);
-            //  deckBox.addCard(mtgCard.imageUris as String);
+            //  deckBox.addCard(cardName);
+              deckBox.addCard(mtgCard, deckPtr);
             });
             cardName = "";
           }
