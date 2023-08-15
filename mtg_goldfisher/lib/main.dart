@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:keymap/keymap.dart';
@@ -57,11 +56,13 @@ class MenuEntry {
 class MtgCard extends StatefulWidget {
   @override
   State<MtgCard> createState() => _MtgCardState();
+
 }
 
 class _MtgCardState extends State<MtgCard> {
   Key objKey = keyImage.keys.toList()[deckPtr];
 
+  //Add Card to deck after importing decklist
   void addCard(scry.MtgCard card, int ptr){
     //add card to deck
     deck.add(card);
@@ -69,47 +70,29 @@ class _MtgCardState extends State<MtgCard> {
     //add to map
     final key = GlobalKey();
     keyImage[key] = "http://cards.scryfall.io${card.imageUris!.large.path}";
-    //print(card.name);
-    print(key);
   }
-
-  //final uri = "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}";
-  //final uri = "https://cards.scryfall.io/large/front/f/1/f1d9cfce-1507-4cdf-9d58-6ebaf44e72e3.jpg?1562557622";
-
-  
 
   double elevation = 4.0; 
   double scale = 1.0;
   Offset translate = Offset(0,0);
+
+  //Dragging
+  Offset position = Offset(100,100);
+  double _x = 0.0;
+  double _y = 0.0;
+
+
 
  
 
 
   @override
   Widget build(BuildContext context) {
-      return Container(
-        margin: EdgeInsets.all(25.0),
-  //      key: ValueKey<String>(deck[deckPtr].name),
-        //What you drag
-        child: Draggable(
-          feedback: Container(
-            height: 300,
-            width: 215,
-            decoration: BoxDecoration(
-            image: DecorationImage(
-              image: NetworkImage(
-                  keyImage[objKey]
-                  ),
-              fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          //What you see when you're dragging
-          childWhenDragging: Opacity(
-            opacity: 0.5,
-            child: Container(
-              width: 200,
-              height: 275,
+      return 
+         Draggable(
+            feedback: Container(
+              height: 300,
+              width: 215,
               decoration: BoxDecoration(
               image: DecorationImage(
                 image: NetworkImage(
@@ -119,74 +102,69 @@ class _MtgCardState extends State<MtgCard> {
                 ),
               ),
             ),
-          ),
-         /* child: Container(
-              width: 200,
-              height: 275,
-              decoration: BoxDecoration(
-              image: DecorationImage(
-                image: NetworkImage(
-                    "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}"
-                    ),
-                fit: BoxFit.cover,
+            //What you see in original position when you're dragging
+            childWhenDragging: Opacity(
+              opacity: 0.5,
+              child: Container(
+                width: 200,
+                height: 275,
+                decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: NetworkImage(
+                      keyImage[objKey]
+                      ),
+                  fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            ),*/
+            ),
+            //  child: keyImage[objKey],
+            //Moveable
+            onDragEnd: (dragDetails) {
+                setState(() {
+                  _x = dragDetails.offset.dx;
+                  // if applicable, don't forget offsets like app/status bar
+                  _y = dragDetails.offset.dy;
+                });
+              },
+            //What you have in hand - Zoom in
             child: InkWell(
               onTap: (){},
               onHover: (value){
                 if(value){
-                  print(objKey);
-                  print(keyImage[objKey]);
-                  print(keyImage.keys.toList()[0]);
-               //   print(translate);
                   setState((){
                     elevation = 4.0; 
-                    scale = 1.5;
-                    translate = Offset(0,-100);
+                    scale = 1.25;
+                    translate = Offset(0,-75);
                   });
                 }else{
-                //  print("Not hovering :(");
-               //   print(translate);
                   setState((){
                     elevation = 4.0; 
                     scale = 1.0;
                     translate = Offset(0,0);
                   });
                 }
-             },
-             child: SizedBox(
+              },
+              child: SizedBox(
                 width: 200,
                 height: 275,
-               /* decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: NetworkImage(
-                        "http://cards.scryfall.io${deck[deckPtr].imageUris!.large.path}"
-                        ),
-                    fit: BoxFit.cover,
-                    ),
-                ),
-                child: [
-                  
-                ]*/
                 child: Transform.translate(
-                offset: translate,        
-                child: Transform.scale(
-                  scale: scale,
-                  child: Material(        
-                    elevation: elevation,        
-                    child: Image.network(           
-                        keyImage[objKey]
+                  offset: translate,        
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Material(        
+                      elevation: elevation,        
+                      child: Image.network(           
+                          keyImage[objKey],
+                          fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ),
-              ),
-             ),
-           ),
-        ),
-      );
-  
-    
+            ),
+          ),
+          );
+      
   }
 }
 
@@ -220,9 +198,16 @@ class _MtgAppState extends State<MtgApp> {
   ShortcutRegistryEntry? _shortcutsEntry;
   String? _lastSelection;
 
+  //used for scrolling
+  final ScrollController _scrollController = ScrollController();
+
   //used for card drawing
   List<MtgCard> dynamicList = [];
   List<String> cardName = [];
+
+  //for moving card
+  Offset _position = Offset(0, 0);
+  bool _started = false;
 
   Color backgroundColor = Color.fromARGB(255, 255, 255, 255);
 
@@ -245,76 +230,89 @@ class _MtgAppState extends State<MtgApp> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Expanded(
-                child: MenuBar(
-                  children: MenuEntry.build(_getMenus()),
+        //Menu
+          appBar: AppBar(
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Expanded(
+                  child: MenuBar(
+                    children: MenuEntry.build(_getMenus()),
+                  ),
                 ),
+              ],
+            ),
+          ),
+          body: Column(
+            children: [
+              //Battlefield
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Text(
+                        showingMessage ? widget.message : '',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    Text(_lastSelection != null
+                        ? 'Last Selected: $_lastSelection'
+                        : ''),
+                  ],
+                ),
+              ),
+              //Hand
+              Column(
+                children: [
+                  Container(
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                  height: 400,
+                  padding: const EdgeInsets.all(0.0),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color.fromARGB(255, 0, 0, 0))
+                  ),
+                  child: KeyboardWidget(
+                        bindings: [
+                          KeyAction(LogicalKeyboardKey.keyD, 'Draw a card', () {
+                            if(deck.isNotEmpty){
+                              setState(() {
+                              dynamicList.add(MtgCard());
+                              deckPtr++;
+                            });
+                            } else {
+                              print("Please enter decklist");
+                            }
+                          })
+                        ],
+                        child: Scrollbar(
+                          controller:_scrollController,
+                          child: ListView.builder(
+                            shrinkWrap: false,
+                            scrollDirection: Axis.horizontal,
+                            controller: _scrollController,
+                            itemCount: 1,
+                            padding: const EdgeInsets.fromLTRB(15, 0, 0, 0),
+                            itemBuilder: (context, index){
+                              return Card(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: dynamicList,       
+                                )
+                              );
+                            }
+                          )
+                        )
+                    ),
+                ),
+                
+              //    )
+                ],
               ),
             ],
           ),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Text(
-                          showingMessage ? widget.message : '',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                      Text(_lastSelection != null
-                          ? 'Last Selected: $_lastSelection'
-                          : ''),
-                    ],
-                  ),
-            ),
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                    height: 350,
-                    padding: const EdgeInsets.all(5.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color.fromARGB(255, 0, 0, 0))
-                    ),
-                    child: KeyboardWidget(
-                          bindings: [
-                            KeyAction(LogicalKeyboardKey.keyD, 'Draw a card', () {
-                              if(deck.isNotEmpty){
-                                setState(() {
-                                dynamicList.add(MtgCard());
-                              //  dynamicList.add(DynamicWidget(key: UniqueKey(), ptr: deckPtr));
-                                deckPtr++;
-                              });
-                              } else {
-                                print("Please enter decklist");
-                              }
-                            })
-                          ],
-                     //     child: Scrollbar(
-                      //      thickness: 10, //width of scrollbar
-                      //      radius: Radius.circular(20), //corner radius of scrollbar
-                         //   scrollbarOrientation: ScrollbarOrientation.left, 
-                            child: SingleChildScrollView(
-                          //    scrollDirection: Axis.horizontal,
-                             // padding: EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 0.0),
-                              child: Row(
-                               // mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: dynamicList,
-                              )
-                            ),
-                        //  )
-                      ),
-                  ),
-          ],
-        ),
-      );
+        );
   }
 
   List<MenuEntry> _getMenus() {
@@ -347,7 +345,6 @@ class _MtgAppState extends State<MtgApp> {
           ),
           MenuEntry(label: 'Import Decklist',
           onPressed: () async {
-              //await chooseFile();
               await createDeckList();
           })
         ],
@@ -363,8 +360,6 @@ class _MtgAppState extends State<MtgApp> {
     if( fileResult == null) return "";
     
     PlatformFile file = fileResult.files.single;
-    
-    print(file.path);
     
     return file.path.toString();
   }
